@@ -1,0 +1,18 @@
+// Anomaly in ClientIP count
+NetworkMetrics
+| summarize count() by ClientIP
+| top 3 by count_ asc 
+| evaluate ipv4_lookup(IpInfo, ClientIP, IpCidr)
+
+// Visualize anomaly with timechart
+NetworkMetrics
+| where ipv4_is_match(ClientIP, '96.236.64.0/24') // KUANDA.ORG
+| make-series count(), sum(BytesSent), sum(BytesReceived) on Timestamp step 1h
+| render timechart with (ysplit=panels)
+
+// Anomaly in bytes sent
+NetworkMetrics
+| summarize Count=sum(BytesSent) by Time=bin(Timestamp, 1h), ClientIP
+| summarize Count=sum(Count) by Time, ClientIP=format_ipv4(ClientIP, 24)
+| summarize Score=max(Count)/avg(Count) by ClientIP
+| top 3 by Score

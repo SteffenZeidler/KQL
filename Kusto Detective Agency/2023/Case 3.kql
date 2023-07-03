@@ -1,0 +1,34 @@
+// with time key
+let tw=5m;
+let td=1m;
+CarsTraffic
+| where VIN in (StolenCars)
+| summarize arg_max(Timestamp, *) by VIN
+| mv-expand TimeKey= range(bin(Timestamp, td), Timestamp + tw, td) to typeof(datetime)
+| join kind=rightsemi 
+    (
+    CarsTraffic
+    | summarize arg_min(Timestamp, *) by VIN
+    | extend TimeKey= bin(Timestamp, td)
+    )
+    on Ave, Street, TimeKey
+| join kind=rightsemi 
+    (
+    CarsTraffic
+    | summarize arg_max(Timestamp, *) by VIN
+    )
+    on VIN
+| summarize count() by Ave, Street
+| sort by count_
+
+// without time key
+let tw=5m;
+CarsTraffic
+| where VIN in (StolenCars)
+| summarize arg_max(Timestamp, *) by VIN
+| join kind=inner (CarsTraffic | summarize arg_min(Timestamp, *) by VIN) on Ave, Street
+| where Timestamp1 between (Timestamp .. tw)
+| extend VIN=VIN1
+| join kind=rightsemi (CarsTraffic | summarize arg_max(Timestamp, *) by VIN) on VIN
+| summarize Count=count() by Ave, Street
+| top 1 by Count

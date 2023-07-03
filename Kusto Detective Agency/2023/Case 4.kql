@@ -16,3 +16,4 @@ NetworkMetrics
 | summarize Count=sum(Count) by Time, ClientIP=format_ipv4(ClientIP, 24)
 | summarize Score=max(Count)/avg(Count) by ClientIP
 | top 3 by Score
+| evaluate ipv4_lookup(IpInfo, ClientIP, IpCidr)

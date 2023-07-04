@@ -17,3 +17,12 @@ NetworkMetrics
 | summarize Score=max(Count)/avg(Count) by ClientIP
 | top 3 by Score
 | evaluate ipv4_lookup(IpInfo, ClientIP, IpCidr)
+
+// with series_decompose_anomalies
+NetworkMetrics
+    | make-series BytesSent=sum(BytesSent) on Timestamp step 1d by ClientIP=format_ipv4(ClientIP, 24)
+    | extend  (BytesSentAnomaly, BytesSentAnomalyScore) = series_decompose_anomalies(BytesSent)
+    | mv-apply BytesSentAnomalyScore to typeof(double) on (top 1 by BytesSentAnomalyScore)
+    | top 5 by BytesSentAnomalyScore
+    | evaluate ipv4_lookup(IpInfo, ClientIP, IpCidr)
+    | render anomalychart with(anomalycolumns=BytesSentAnomaly, series=Info)

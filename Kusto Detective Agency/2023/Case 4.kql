@@ -10,6 +10,19 @@ NetworkMetrics
 | make-series count(), sum(BytesSent), sum(BytesReceived) on Timestamp step 1h
 | render timechart with (ysplit=panels)
 
+// Anomaly in dcount ClientIP
+NetworkMetrics
+| distinct ClientIP
+| summarize dcount(ClientIP) by ClientIP=format_ipv4(ClientIP, 24)
+| top 3 by dcount_ClientIP
+| evaluate ipv4_lookup(IpInfo, ClientIP, IpCidr)
+
+// Anomaly in dcount TargetIP
+NetworkMetrics
+| summarize dcount(TargetIP) by ClientIP
+| top 3 by dcount_TargetIP
+| evaluate ipv4_lookup(IpInfo, ClientIP, IpCidr)
+
 // Anomaly in bytes sent
 NetworkMetrics
 | summarize Count=sum(BytesSent) by Time=bin(Timestamp, 1h), ClientIP

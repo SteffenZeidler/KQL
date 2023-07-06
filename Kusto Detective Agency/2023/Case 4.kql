@@ -20,9 +20,17 @@ NetworkMetrics
 
 // with series_decompose_anomalies
 NetworkMetrics
-    | make-series BytesSent=sum(BytesSent) on Timestamp step 1d by ClientIP=format_ipv4(ClientIP, 24)
-    | extend  (BytesSentAnomaly, BytesSentAnomalyScore) = series_decompose_anomalies(BytesSent)
-    | mv-apply BytesSentAnomalyScore to typeof(double) on (top 1 by BytesSentAnomalyScore)
-    | top 5 by BytesSentAnomalyScore
-    | evaluate ipv4_lookup(IpInfo, ClientIP, IpCidr)
-    | render anomalychart with(anomalycolumns=BytesSentAnomaly, series=Info)
+| make-series sum(BytesSent) on Timestamp step 1d by ClientIP=format_ipv4(ClientIP, 24)
+| extend (flag, score, baseline) = series_decompose_anomalies(sum_BytesSent)
+| extend max_score = toreal(series_stats_dynamic(score).max)
+| top 5 by max_score
+| evaluate ipv4_lookup(IpInfo, ClientIP, IpCidr)
+| render anomalychart with(anomalycolumns=flag, series=Info)
+
+NetworkMetrics
+| lookup kind=inner
+  (NetworkMetrics | distinct ClientIP | evaluate ipv4_lookup(IpInfo, ClientIP, IpCidr)) on ClientIP
+| make-series sum(BytesSent) on Timestamp step 1d by Info
+| extend (flag, score, baseline) = series_decompose_anomalies(sum_BytesSent)
+| extend max_score = toreal(series_stats_dynamic(score).max)
+| top 5 by max_score

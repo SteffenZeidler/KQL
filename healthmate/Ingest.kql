@@ -1,0 +1,11 @@
+// Create table command
+////////////////////////////////////////////////////////////
+.create table ['Sleep']  (['von']:datetime, ['bis']:datetime, ['leicht_s']:long, ['tief_s']:long, ['rem_s']:long, ['wach_s']:long, ['Aufwachen']:long, ['Duration2sleep_s']:long, ['Duration2wakeup_s']:long, ['Snoring_s']:long, ['Snoring_episodes']:long, ['Average_heart_rate']:long, ['Heart_rate_min']:long, ['Heart_rate_max']:long, ['Night_events']:dynamic)
+
+// Create mapping command
+////////////////////////////////////////////////////////////
+.create table ['Sleep'] ingestion csv mapping 'Sleep_mapping' '[{"column":"von", "Properties":{"Ordinal":"0"}},{"column":"bis", "Properties":{"Ordinal":"1"}},{"column":"leicht_s", "Properties":{"Ordinal":"2"}},{"column":"tief_s", "Properties":{"Ordinal":"3"}},{"column":"rem_s", "Properties":{"Ordinal":"4"}},{"column":"wach_s", "Properties":{"Ordinal":"5"}},{"column":"Aufwachen", "Properties":{"Ordinal":"6"}},{"column":"Duration2sleep_s", "Properties":{"Ordinal":"7"}},{"column":"Duration2wakeup_s", "Properties":{"Ordinal":"8"}},{"column":"Snoring_s", "Properties":{"Ordinal":"9"}},{"column":"Snoring_episodes", "Properties":{"Ordinal":"10"}},{"column":"Average_heart_rate", "Properties":{"Ordinal":"11"}},{"column":"Heart_rate_min", "Properties":{"Ordinal":"12"}},{"column":"Heart_rate_max", "Properties":{"Ordinal":"13"}},{"column":"Night_events", "Properties":{"Ordinal":"14"}}]'
+
+// Ingest data into table command
+///////////////////////////////////////////////////////////
+.ingest async into table ['Sleep'] (h'<blob path to upload>') with (format='csv',ingestionMappingReference='Sleep_mapping',ingestionMappingType='csv',ignoreFirstRecord=true)

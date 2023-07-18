@@ -1,0 +1,21 @@
+// Delete shortly after Create without Reads
+StorageArchiveLogs
+| parse EventText with TransactionType " blob transaction: '" BlobURI "'" *
+| summarize
+    Create= maxif(Timestamp, TransactionType == 'Create'),
+    Delete= maxif(Timestamp, TransactionType == 'Delete'),
+    Reads= countif(TransactionType == 'Read')
+    by BlobURI
+| where Reads == 0
+| extend dt= Delete - Create
+| where isnotnull(dt)
+| top 5 by dt asc 
+
+// 7d period
+StorageArchiveLogs
+| parse-where EventText with "Read blob transaction: '" BlobURI "' read access (" Reads: long "reads)" *
+| extend Host= tostring(parse_url(BlobURI).Host)
+| make-series R= sum(Reads) on Timestamp step 1d by Host
+| extend (P, S)= series_periods_validate(R, 7)
+| extend Score= toreal(S[0])
+| top 5 by Score

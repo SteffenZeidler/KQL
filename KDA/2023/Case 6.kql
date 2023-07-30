@@ -1,0 +1,8 @@
+Instructions
+| project lookup = extract_all(@"((\d+)/(\d+))", Text)
+| mv-expand lookup
+| project lookup= tostring(lookup[0]), ObjectId=tolong(lookup[1]), Idx=toint(lookup[2])
+| lookup (NationalGalleryArt | project ObjectId, ProvenanceText) on ObjectId
+| extend rewrite = extract_all(@"(\w+)", ProvenanceText)[Idx]
+| summarize lookups= make_list(lookup), rewrites= make_list(rewrite)
+| project replace_strings(toscalar(Instructions), lookups, rewrites)

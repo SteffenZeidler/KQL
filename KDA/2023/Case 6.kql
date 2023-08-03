@@ -1,23 +1,35 @@
 Instructions
-| project lookup= extract_all(@"((\d+)/(\d+))", Text)
-| mv-expand lookup
+| mv-expand lookup= extract_all(@"((\d+)/(\d+))", Text)
 | project lookup= tostring(lookup[0]), ObjectId= tolong(lookup[1]), Idx= toint(lookup[2])
 | lookup (NationalGalleryArt | project ObjectId, ProvenanceText) on ObjectId
 | extend rewrite= extract_all(@"(\w+)", ProvenanceText)[Idx]
 | summarize lookups= make_list(lookup), rewrites= make_list(rewrite)
 | project replace_strings(toscalar(Instructions), lookups, rewrites)
 
-let WordCount= NationalGalleryArt
-    | extend word= extract_all(@"(\w{3,})", Title)
-    | mv-expand word
-    | summarize count() by word=tolower(word)
-    | sort by count_ desc;
+let WordCount= materialize (
+    NationalGalleryArt
+    // at least three Letters have in view
+    | mv-expand word= extract_all(@"(\w{3,})", Title)
+    // they're case insensitive, my friend
+    // seeking the popular will guide you still
+    | summarize count() by word= tolower(word)
+    | sort by count_ desc);
 print
-    word1= toscalar(WordCount | extend word1= next(word) | where word == "king" | project word1),
-    word2= toscalar(WordCount
-    | where count_ == toscalar(WordCount | where word == "third" | project count_)
-    | summarize make_list(word)),
+    // below The King, the first word mounts
+    word1= toscalar(WordCount | where prev(word) == "king"),
+    // the Second shares with Third their counts
+    word2= toscalar(
+    WordCount
+    | summarize make_list(word) by count_
+    | where set_has_element(list_word, "third")
+    | project list_word),
+    // from word most sought into marked dozen
     word3= toscalar(WordCount | where row_number() in (1, 12) | summarize make_list(word))
 
 NationalGalleryArt
-| where Title has_all ("day", "year", "month")
+// timeline
+| where Title has_all ("day", "month", "year")
+
+NationalGalleryArt
+// timeline
+| where tolower(Title) matches regex @"day.+month.+year"

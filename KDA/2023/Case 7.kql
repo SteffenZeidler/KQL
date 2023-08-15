@@ -1,0 +1,39 @@
+// Doha airport on August 11, 2023, between 03:30 AM and 05:30 AM (UTC).
+// planes getting cozy together for several minutes within just a few kilometers of distance!
+// wingsuit sky-jumping demands more than just proximity - it requires a specific plane attitude, one over the other.
+// In which city did the suspect land?
+
+// Doha departures callsign
+Airports
+| extend key=geo_point_to_s2cell(lon, lat, 9)
+| join kind=inner (
+    Flights
+    | where onground
+    | where Timestamp between (datetime(2023-08-11 3:30) .. 1d)
+    | extend key=geo_point_to_s2cell(lon, lat, 9)
+    )
+    on key
+| as AirportsFlights
+| where municipality == 'Doha'
+| where Timestamp between (datetime(2023-08-11 3:30) .. 2h)
+// plane-to-plane jump callsign1 to callsign2
+| join kind=innerunique (
+    Flights
+    | where not(onground)
+    | where geoaltitude between (2000 .. 8000)
+    | summarize take_any(geoaltitude) by geo=geo_point_to_s2cell(lon, lat, 13), Time=bin(Timestamp, 1m), callsign
+    | as Flights1
+    )
+    on callsign
+| join kind=inner Flights1 on geo, Time
+| where callsign1 != callsign2
+| where geoaltitude1 > geoaltitude2
+| summarize count() by callsign1, callsign2
+| top 1 by count_
+// arrival callsign2
+| join kind=inner (
+    AirportsFlights
+    | summarize arg_max(Timestamp, municipality) by callsign
+    )
+    on $left.callsign2 == $right.callsign
+| project municipality

@@ -37,3 +37,39 @@ Airports
     )
     on $left.callsign2 == $right.callsign
 | project municipality
+
+// Variant 2 with geo_distance_2points
+// Doha departures callsign
+Airports
+| extend key=geo_point_to_s2cell(lon, lat, 9)
+| join kind=inner (
+    Flights
+    | where onground
+    | where Timestamp between (datetime(2023-08-11 3:30) .. 1d)
+    | extend key=geo_point_to_s2cell(lon, lat, 9)
+    )
+    on key
+| as AirportsFlights
+| where municipality == 'Doha'
+| where Timestamp between (datetime(2023-08-11 3:30) .. 2h)
+| distinct callsign
+// plane-to-plane jump callsign1 to callsign2
+| join kind=inner (
+    Flights
+    | where not(onground)
+    | where geoaltitude between (1000 .. 9000)
+    | as Flights1
+    )
+    on callsign
+| join kind=inner Flights1 on Timestamp
+| where geo_distance_2points(lon, lat, lon1, lat1) < 5000
+| where callsign1 != callsign2
+| summarize count() by callsign1, callsign2
+| top 1 by count_
+// arrival callsign2
+| join kind=inner (
+    AirportsFlights
+    | summarize arg_max(Timestamp, municipality) by callsign
+    )
+    on $left.callsign2 == $right.callsign
+| project municipality

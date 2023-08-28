@@ -1,0 +1,45 @@
+// magic square la+sagrada+familia
+let city_code=datatable(c1:long,c2:long,c3:long,c4:long)
+[1, ?, ?,  4, 
+ ?, 7, 6,  ?,
+ 8, ?, 10, 5,
+ ?, 2, ?, 15];
+
+let s=1+7+10+15;
+let r=range(1,16,1);
+range c12 from 1 to 16 step 1
+| mv-expand c13= r to typeof(int)
+| where s == 1+c12+c13+4
+| mv-expand c21= r to typeof(int)
+| mv-expand c24= r to typeof(int)
+| where s == c21+7+6+c24
+| mv-expand c32= r to typeof(int)
+| where s == 8+c32+10+5
+| mv-expand c41= r to typeof(int)
+| mv-expand c43= r to typeof(int)
+| where s == c41+2+c43+15
+| where s == 1+c21+8+c41
+| where s == c12+7+c32+2
+| where s == c13+6+10+c43
+| where s == 4+c24+5+15
+
+let s2Level= 12;
+Runs
+| extend s2= geo_point_to_s2cell(StartLon, StartLat, s2Level)
+| summarize
+    week0=countif(Timestamp between (datetime(2023-08-11) .. 15h)),
+    week1=countif(Timestamp between (datetime(2023-08-12) .. 7d)),
+    week2=countif(Timestamp between (datetime(2023-08-19) .. 7d)),
+    distance_outside=countif(Distance !between (8 .. 12)),
+    arg_max(StartLat, StartLon),
+    ts= make_list(Timestamp)
+    by s2, RunnerID
+| summarize take_any(*), dcount(s2) by RunnerID
+| where dcount_s2 == 1 and week0 == 0 and week1 between (3 .. 4) and week2 between (3 .. 4) and distance_outside == 0
+| join kind=leftouter (Runs | project s2= geo_point_to_s2cell(StartLon, StartLat, s2Level), Timestamp, RunnerID) on s2
+| where RunnerID != RunnerID1 and isnotempty(RunnerID1)
+| mv-apply ts to typeof(datetime) on (where (Timestamp - ts) between (0s .. 2m))
+| summarize shadows=count(), take_any(StartLat, StartLon) by RunnerID, ts, s2
+| summarize min(shadows), take_any(StartLat, StartLon) by RunnerID
+| where min_shadows >= 2
+| extend Link=strcat('https://www.google.com/maps/@', StartLat, ',', StartLon, ',3a,75y,252.01h,89.45t/data=!3m6!1e1!3m4!1s-1P!2e0!7i16384!8i8192')

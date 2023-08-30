@@ -23,7 +23,7 @@ range c12 from 1 to 16 step 1
 | where s == c13+6+10+c43
 | where s == 4+c24+5+15
 
-let s2Level= 12;
+let s2Level= 22;
 Runs
 | extend s2= geo_point_to_s2cell(StartLon, StartLat, s2Level)
 | summarize
@@ -35,10 +35,11 @@ Runs
     ts= make_list(Timestamp)
     by s2, RunnerID
 | summarize take_any(*), dcount(s2) by RunnerID
-| where dcount_s2 == 1 and week0 == 0 and week1 between (3 .. 4) and week2 between (3 .. 4) and distance_outside == 0
+//| where dcount_s2 == 1 and week0 == 0 and week1 between (3 .. 4) and week2 between (3 .. 4) and distance_outside == 0
+| where dcount_s2 == 1 and week1 between (3 .. 4) and week2 between (3 .. 4) and distance_outside == 0
 | join kind=leftouter (Runs | project s2= geo_point_to_s2cell(StartLon, StartLat, s2Level), Timestamp, RunnerID) on s2
 | where RunnerID != RunnerID1 and isnotempty(RunnerID1)
-| mv-apply ts to typeof(datetime) on (where (Timestamp - ts) between (0s .. 2m))
+| mv-apply ts to typeof(datetime) on (where abs(Timestamp - ts) < 1m)
 | summarize shadows=count(), take_any(StartLat, StartLon) by RunnerID, ts, s2
 | summarize min(shadows), take_any(StartLat, StartLon) by RunnerID
 | where min_shadows >= 2

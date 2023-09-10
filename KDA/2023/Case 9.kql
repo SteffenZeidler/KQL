@@ -10,9 +10,9 @@ let nodesAdmin = MachineLogsCritical
     | where MachineType == 'Admin'
     | parse-where Message with 'Got request with TaskID=' task: guid ' from ' *;
 let nodes = union nodesSpawnTask, nodesAdmin | project MachineType, Machine, task, subtask;
-let edges = nodes | where MachineType in ('Gateway', 'Admin');
+let nodesGA = nodes | where MachineType in ('Gateway', 'Admin');
 nodes
-| make-graph task --> subtask with edges on task
+| make-graph task --> subtask with nodesGA on task
 | graph-match (gateway)-[backend*1 .. 10]->(admin)
     where gateway.MachineType == 'Gateway' and admin.MachineType == 'Admin'
     project admin.Machine

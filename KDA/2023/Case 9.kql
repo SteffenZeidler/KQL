@@ -16,3 +16,20 @@ nodes
 | graph-match (gateway)-[backend*1 .. 10]->(admin)
     where gateway.MachineType == 'Gateway' and admin.MachineType == 'Admin'
     project admin.Machine
+
+// simplified
+let MachineLogsCritical = MachineLogs
+    | where EventType == 'PeriodicScan' and Message !has "0 critical"
+    | summarize take_any(Message) by Machine
+    | parse Message with MachineType ' ' *
+    | project Machine, MachineType
+    | join kind=inner MachineLogs on Machine;
+let SpawnTasks = MachineLogsCritical
+    | parse-where Message with 'TaskID=' task: guid ': spawning a sub-task with TaskID=' subtask: guid ' on ' *;
+let Requests = MachineLogsCritical
+    | parse-where Message with 'Got request with TaskID=' task: guid ' from ' *;
+SpawnTasks
+| make-graph task --> subtask with Requests on task
+| graph-match (gateway)-[backend*1 .. 10]->(admin)
+    where gateway.MachineType == 'Gateway' and admin.MachineType == 'Admin'
+    project admin.Machine

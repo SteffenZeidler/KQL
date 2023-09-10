@@ -1,0 +1,18 @@
+let MachineLogsCritical = MachineLogs
+    | where EventType == 'PeriodicScan' and Message !has "0 critical"
+    | summarize take_any(Message) by Machine
+    | parse Message with MachineType ' ' *
+    | project Machine, MachineType
+    | join kind=inner MachineLogs on Machine;
+let nodesSpawnTask = MachineLogsCritical
+    | parse-where Message with 'TaskID=' task: guid ': spawning a sub-task with TaskID=' subtask: guid ' on ' *;
+let nodesAdmin = MachineLogsCritical
+    | where MachineType == 'Admin'
+    | parse-where Message with 'Got request with TaskID=' task: guid ' from ' *;
+let nodes = union nodesSpawnTask, nodesAdmin | project MachineType, Machine, task, subtask;
+let edges = nodes | where MachineType in ('Gateway', 'Admin');
+nodes
+| make-graph task --> subtask with edges on task
+| graph-match (gateway)-[backend*1 .. 10]->(admin)
+    where gateway.MachineType == 'Gateway' and admin.MachineType == 'Admin'
+    project admin.Machine

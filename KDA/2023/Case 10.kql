@@ -1,0 +1,93 @@
+// solution with scan
+let Ids=KuandaLogs
+    | where Message has "encrypted"
+    | summarize take_any(DetectiveId) by strlen(Message)
+    | distinct DetectiveId
+;
+KuandaLogs
+| where DetectiveId in (Ids)
+| parse Message with "Operation id=" OperationId " started ('" Case "'). Captured user encryption token: '" token "'."
+| parse Message with "Operation id=" OperationId2 " completed: user encryption token for this operation is disposed."
+| parse Message with "Sending an encrypted message, will use Dekrypt(@'" encrypted "', strcat_array(<active-user-encryption-tokens>, '')) for decoding."
+| partition hint.strategy=native by DetectiveId (
+    order by Timestamp asc 
+    | scan declare(Tokens: dynamic) with (
+        step start: Message has_any ('User entered the system', 'User session reset');
+        step s2: true =>
+        Tokens=case(
+           isnotempty(OperationId), bag_merge(s2.Tokens, bag_pack(OperationId, token)),
+           isnotempty(OperationId2), bag_remove_keys(s2.Tokens, pack_array(OperationId2)),
+           s2.Tokens);
+           )
+    | where isnotempty(encrypted)
+    | mv-apply Tokens, i=bag_keys(Tokens) to typeof(string) on (summarize Key=strcat_array(make_list(Tokens[i]), ''))
+    )
+| project Message=encrypted, Key
+| invoke Dekrypt()
+| project Result
+
+// with scan and Timestamp desc
+let Ids=KuandaLogs
+    | where Message has "encrypted"
+    | summarize take_any(*) by strlen(Message)
+    | distinct DetectiveId
+;
+KuandaLogs
+| where DetectiveId in (Ids)
+| parse Message with "Operation id=" OperationId " started ('" Case "'). Captured user encryption token: '" token "'."
+| parse Message with "Operation id=" OperationId2 " completed: user encryption token for this operation is disposed."
+| parse Message with "Sending an encrypted message, will use Dekrypt(@'" encrypted "', strcat_array(<active-user-encryption-tokens>, '')) for decoding."
+| extend stop= Message has_any ('User entered the system', 'User session reset')
+| partition hint.strategy=native by DetectiveId (
+    order by Timestamp desc
+    | scan declare(disposed:dynamic=dynamic([]), Key:string) with (
+        step s1 output=none: isnotempty(encrypted);
+        step s2 output=last: isnull(s2.stop) or not(s2.stop)=>
+        disposed=iff(isnotempty(OperationId2),array_concat(s2.disposed,pack_array(OperationId2)),s2.disposed),
+        Key=iff(isnotempty(token) and not(set_has_element(s2.disposed, OperationId)),strcat(token,s2.Key),s2.Key),
+        Message=s1.encrypted;
+    )
+)
+| invoke Dekrypt()
+| project Result
+
+// with partition and next
+KuandaLogs
+| parse-where Message with * "Dekrypt(@'" encrypted "'" *
+| summarize take_any(*) by strlen(encrypted)
+| join kind=inner (KuandaLogs | parse-where Message with * "token: '" token "'" *) on DetectiveId
+| where Timestamp1 between (Timestamp .. -2h)
+| partition hint.strategy=native by DetectiveId (
+    order by Timestamp1
+    | extend Key=strcat(next(token,2), next(token), token), Message=encrypted
+    | top 1 by Timestamp1
+)
+| invoke Dekrypt()
+| project Result
+
+// with partition and summarize
+KuandaLogs
+| parse-where Message with * "Dekrypt(@'" encrypted "'" *
+| summarize take_any(*) by strlen(encrypted)
+| join kind=inner (KuandaLogs | parse-where Message with * "token: '" token "'" *) on DetectiveId
+| where Timestamp1 between (Timestamp .. -2h)
+| partition hint.strategy=native by DetectiveId (
+    top 3 by Timestamp1
+    | summarize
+        Key=strcat_array(array_reverse(make_list(token)), ''),
+        Message=take_any(encrypted)
+    )
+| invoke Dekrypt()
+| project Result
+
+// without partition
+KuandaLogs
+| parse-where Message with * "Dekrypt(@'" encrypted "'" *
+| summarize take_any(*) by strlen(encrypted)
+| join kind=inner (KuandaLogs | parse-where Message with * "token: '" token "'" *) on DetectiveId
+| where Timestamp1 between (Timestamp .. -2h)
+| summarize tokens=make_list(token), times=make_list(Timestamp1), Message=take_any(encrypted)
+    by DetectiveId
+| extend Key=strcat_array(array_slice(array_sort_asc(times, tokens)[1], -3, -1), '')
+| invoke Dekrypt()
+| project Result

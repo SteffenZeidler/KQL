@@ -2,7 +2,7 @@
 https://learn.microsoft.com/azure/data-explorer/kusto/query/
 # KDA
 https://detective.kusto.io/
-- case 3: joins
+- case 3: joins, time-window joins
 - case 4: aggregation
 - case 5: parse, anomalies
 - case 6: strings

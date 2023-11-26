@@ -1,0 +1,27 @@
+//xtype: one of ( "-" | "linear" | "log" | "date" | "category" | "multicategory" )
+let PlotlyBar=(T:(base:dynamic, x:dynamic, y:dynamic, text:dynamic), xtype:string='date'){
+T
+| project type='bar', orientation='h', base, x, y, text
+| project tostring(bag_pack('data', pack_array(pack_all()),'layout',bag_pack('xaxis', bag_pack('type', xtype))))
+| render plotly
+};
+print
+base= pack_array(datetime(2009-01-01),datetime(2009-03-05),datetime(2009-02-20)),
+x= pack_array(60d/1ms,40d/1ms,80d/1ms),
+y= pack_array(1,1,2),
+text= pack_array('a','b','c')
+| invoke PlotlyBar()
+
+let PlotlyScatter=(T:(x:dynamic, y:dynamic)){
+T
+| project x, y, type='scatter', mode='lines'
+| project tostring(bag_pack('data', pack_array(pack_all())))
+| render plotly
+};
+range x from 1 to 1000 step 1
+| extend y=bitset_count_ones(hash(x))
+| summarize x=make_list(x), y=make_list(y)
+| invoke PlotlyScatter()
+
+cluster('help.kusto.windows.net').database('Samples').
+PlotlyTemplate

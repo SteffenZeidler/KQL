@@ -1,0 +1,23 @@
+TraceJsonLines
+| mv-expand resourceSpan=resourceSpans
+| mv-apply attributes=resourceSpan.resource.attributes on (
+    extend key=attributes.key, value=attributes.value.stringValue
+    | summarize
+        service=take_anyif(value, key == 'service.name'),
+        instance=take_anyif(value, key == 'service.instance.id')
+    )
+| mv-expand scopeSpan=resourceSpan.scopeSpans
+| extend scopeName=scopeSpan.scope.name
+| mv-expand span=scopeSpan.spans
+| project service, instance, scopeName, span, name=span.name
+| mv-apply attributes=span.attributes on (
+    extend key=attributes.key, value=attributes.value.stringValue
+    | summarize url=take_anyif(value, key == 'http.url')
+    )
+| extend 
+    traceId=span.traceId,
+    spanId=span.spanId,
+    parentSpanId=span.parentSpanId,
+    startTimeUnixNano=unixtime_nanoseconds_todatetime(tolong(span.startTimeUnixNano)),
+    endTimeUnixNano=unixtime_nanoseconds_todatetime(tolong(span.endTimeUnixNano))
+| extend duration=endTimeUnixNano - startTimeUnixNano
